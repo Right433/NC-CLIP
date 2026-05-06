@@ -1,1 +1,0 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8  --master_port=25953  train.py  --epochs=3 --base_model=L14 --batch-size=128 --soft_mask=0 --lambda_sparse=2 --lambda_align=10  --mask_lr=1e-3
