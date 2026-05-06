@@ -1,0 +1,1 @@
+torchrun --nproc_per_node=4  --master_port=25960  train.py --base_model=B16 --lambda_sparse=2
