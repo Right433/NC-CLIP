@@ -1,17 +1,3 @@
-"""
-InvCLIP
-
-v10.6 基础上新增:
-  ① Early stopping: 自动保存 best checkpoint (按 z_com)
-     epoch >= lr_decay_epoch 后 lr 减半
-  ② Occupancy loss: 强制所有 ETF 顶点被利用
-     L_occ = relu(K - occ_count) / K
-  ③ 两级 mask (coarse 50% + fine 30%), 拼接成 1536 维
-     - fine mask:   top 30% dims → z_fine  [B, 768]
-     - coarse mask: top 50% dims → z_coarse [B, 768]
-     - z_cat = concat([z_fine, z_coarse]) [B, 1536]
-     - 对比学习用 z_cat, ETF align 用 z_fine
-"""
 
 import torch
 from train_utils import is_dist_avail_and_initialized, accuracy
@@ -295,45 +281,7 @@ def sinkhorn_assign(scores, eps=0.05, num_iters=3):
 
 class InvariantMask(nn.Module):
     """
-    两级 mask:
-      fine_predictor:   target_k = D * (1 - fine_ratio)   e.g. 30% sparsity → keep 70%? 
-                        实际: target_k = D * coarse_ratio (保留更少)
-      coarse_predictor: target_k = D * (1 - coarse_ratio) 保留更多
-
-    Wait, let me re-think:
-      fine_ratio   = target_sparsity_ratio = 0.3 → keep 70% of dims
-      coarse_ratio = coarse_sparsity_ratio = 0.5 → keep 50% of dims
-
-    Actually from the conversation:
-      fine mask:   top 30% kept (sparsity 70%) -- but previous best was sparsity=0.3 meaning keep 70%
-      coarse mask: top 50% kept (sparsity 50%)
-
-    Let me re-read: "细粒度 mask（保留 30%）：当前这个" -- so fine keeps 30%, coarse keeps 50%
-    target_sparsity_ratio=0.3 means 30% sparsity → keep 70%... 
-
-    Actually looking at code: target_k = int(feature_dim * (1.0 - args.target_sparsity_ratio))
-    With target_sparsity_ratio=0.3: target_k = 768 * 0.7 = 537 → keeps 70%
-
-    But the log says "Sparsity: 30.08%" which means 30% are zeroed out, 70% kept.
-
-    For the two-level mask:
-      fine:   keep fewer dims → higher sparsity → target_sparsity_ratio larger
-      coarse: keep more dims  → lower sparsity  → target_sparsity_ratio smaller
-
-    From conversation: "细粒度 mask（保留 30%）" means fine keeps 30% of dims
-    So fine: target_k = D * 0.3 → sparsity = 0.7
-       coarse: target_k = D * 0.5 → sparsity = 0.5
-
-    That's the interpretation. Let me use:
-      fine_k   = int(D * (1 - fine_sparsity))   where fine_sparsity = 0.7 → fine_k = 230
-      coarse_k = int(D * (1 - coarse_sparsity)) where coarse_sparsity = 0.5 → coarse_k = 384
-
-    Actually I think the user said "保留 30%" for fine and "保留 50%" for coarse.
-    So fine keeps 30% → fine_k = D * 0.3
-       coarse keeps 50% → coarse_k = D * 0.5
-    
-    z_cat = [z_fine; z_coarse] → 1536 dims
-    """
+  
     def __init__(self, feature_dim, num_classes=20,
                  fine_k=None, coarse_k=None,
                  tau_end=0.2, **kwargs):
